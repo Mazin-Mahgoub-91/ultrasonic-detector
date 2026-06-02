@@ -1,0 +1,84 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { background:#000; color:#0f0; text-align:center; padding:10px }
+canvas { width:100%; max-width:700px; height:250px; background:#000; border:3px solid #0f0; margin:15px auto; display:block }
+button { padding:20px; font-size:18px; background:#0f0; color:#000; border:none }
+#log { color:yellow; margin-top:10px; font-size:13px; text-align:left; background:#111; padding:8px }
+</style>
+</head>
+<body>
+<h2>تست الشاشة + المايك</h2>
+<canvas id="scope"></canvas>
+<button id="start" type="button">1. شغل المايك</button>
+<div id="log">0. الصفحة فتحت</div>
+
+<script>
+const log = document.getElementById('log');
+function add(t){ log.innerHTML += "<br>" + t; }
+
+const canvas = document.getElementById('scope');
+const ctx = canvas.getContext('2d');
+canvas.width = 700; canvas.height = 250;
+
+// نرسم المستطيل طوالي أول ما الصفحة تفتح
+ctx.fillStyle = '#000';
+ctx.fillRect(0,0,canvas.width,canvas.height);
+ctx.strokeStyle = '#0f0';
+ctx.strokeRect(0,0,canvas.width,canvas.height);
+ctx.fillStyle = '#0f0';
+ctx.font = '20px monospace';
+ctx.fillText('انتظر تشغيل المايك...', 200, 120);
+add("1. المستطيل اترسم ✅ لو ما شايفو معناها المتصفح خربان");
+
+let audioCtx, analyser;
+
+document.getElementById('start').onclick = async () => {
+  add("2. الزر اتضغط");
+  try {
+    add("3. بعمل AudioContext");
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    add("4. الحالة: " + audioCtx.state);
+
+    if(audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+      add("5. عملنا resume");
+    }
+
+    add("6. بطلب المايك...");
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    add("7. المايك اشتغل 🔥");
+
+    const mic = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    mic.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    document.getElementById('start').innerText = "المايك شغال - اتكلم";
+
+    function draw(){
+      requestAnimationFrame(draw);
+      if(!analyser) return;
+      analyser.getByteFrequencyData(dataArray);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      const barWidth = canvas.width / dataArray.length;
+      for(let i=0; i<dataArray.length; i++){
+        let h = dataArray[i]/255 * canvas.height;
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(i*barWidth, canvas.height-h, barWidth, h);
+      }
+    }
+    draw();
+
+  } catch(e){
+    add("<span style='color:red'>خطأ: " + e.name + " - " + e.message + "</span>");
+    alert(e.name + ": " + e.message);
+  }
+};
+</script>
+</body>
+</html>
