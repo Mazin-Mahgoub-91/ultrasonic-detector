@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Ultrasonic Scope</title>
+<style>
+body { background:#000; color:#0f0; font-family:monospace; text-align:center; padding:10px; margin:0 }
+h2 { margin:10px }
+canvas { width:100%; max-width:700px; height:250px; background:#000; border:3px solid #0f0; display:block; margin:15px auto }
+button { padding:20px 40px; font-size:18px; background:#0f0; color:#000; border:none; border-radius:8px; font-weight:bold }
+#log { color:yellow; margin-top:10px; font-size:14px }
+</style>
+</head>
+<body>
+<h2>شاشة الموجات فوق الصوتية</h2>
+<button id="start" type="button">اضغط لتشغيل المايك</button>
+<canvas id="scope"></canvas>
+<div id="log">الحالة: واقف</div>
+
+<script>
+let audioCtx, analyser, dataArray;
+const log = document.getElementById('log');
+const canvas = document.getElementById('scope');
+const ctx = canvas.getContext('2d');
+canvas.width = 700; canvas.height = 250;
+
+document.getElementById('start').onclick = async () => {
+  try {
+    log.innerHTML = "بشغل المايك...";
+
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+
+    const stream = await navigator.mediaDevices.getUserMedia({audio: {
+      echoCancellation: false, noiseSuppression: false, autoGainControl: false
+    }});
+
+    const mic = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.3;
+    mic.connect(analyser);
+
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    log.innerHTML = "المايك شغال 🔴 جرب الريموت هسي";
+    document.getElementById('start').style.display = 'none';
+
+    draw();
+
+  } catch(err) {
+    log.innerHTML = "<span style='color:red'>خطأ: " + err.message + "</span>";
+  }
+};
+
+function draw() {
+  requestAnimationFrame(draw);
+  if(!analyser) return;
+
+  analyser.getByteFrequencyData(dataArray);
+
+  // خلفية سوداء
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // شبكة خفيفة
+  ctx.strokeStyle = '#0a0';
+  ctx.lineWidth = 1;
+  for(let i=0; i<canvas.width; i+=50) {
+    ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke();
+  }
+  for(let i=0; i<canvas.height; i+=25) {
+    ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke();
+  }
+
+  // الرسم حق الخطوط
+  const barWidth = canvas.width / dataArray.length;
+  for(let i = 0; i < dataArray.length; i++) {
+    const barHeight = (dataArray[i] / 255) * canvas.height;
+    const hue = i / 3; // ألوان قوس قزح
+    ctx.fillStyle = hsl(${hue}, 100%, 50%);
+    ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth, barHeight);
+  }
+
+  // خط أحمر عند 20kHz عشان نشوف الـ ultrasonic
+  const freq20k = Math.floor(20000 * analyser.fftSize / audioCtx.sampleRate);
+  ctx.strokeStyle = 'red';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(freq20k * barWidth, 0);
+  ctx.lineTo(freq20k * barWidth, canvas.height);
+  ctx.stroke();
+}
+</script>
+</body>
+</html>
