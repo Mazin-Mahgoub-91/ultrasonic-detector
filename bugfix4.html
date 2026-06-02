@@ -1,0 +1,35 @@
+﻿<!DOCTYPE html>
+<html>
+<body style="background:#000; color:#0f0; text-align:center; padding:30px">
+<button id="start" type="button" style="padding:25px; font-size:20px">شغل المايك</button>
+<div id="log" style="color:yellow; margin-top:20px">1. جاهز للتشغيل</div>
+
+<script>
+// نخلي كل شي جوه try عشان لو وقع نعرف وين
+document.getElementById('start').addEventListener('click', async function() {
+  document.getElementById('log').innerHTML = "2. الزر اشتغل ✅";
+  
+  try {
+    document.getElementById('log').innerHTML += "<br>3. بحاول AudioContext...";
+    var AudioContext = window.AudioContext || window.webkitAudioContext;
+    var ctx = new AudioContext();
+    document.getElementById('log').innerHTML += "<br>4. AudioContext: " + ctx.state;
+    
+    if(ctx.state === 'suspended') {
+      document.getElementById('log').innerHTML += "<br>5. بعمل resume...";
+      await ctx.resume();
+    }
+    
+    document.getElementById('log').innerHTML += "<br>6. بطلب المايك...";
+    var stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    document.getElementById('log').innerHTML += "<br>7. نجحنا! المايك اشتغل 🔥";
+    
+  } catch(e) {
+    document.getElementById('log').innerHTML += "<br><span style='color:red'>خطأ: " + e.name + "</span>";
+    document.getElementById('log').innerHTML += "<br>التفاصيل: " + e.message;
+    alert("الخطأ: " + e.name);
+  }
+});
+</script>
+</body>
+</html>
