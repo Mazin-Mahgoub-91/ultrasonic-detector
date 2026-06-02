@@ -1,0 +1,17 @@
+﻿<!DOCTYPE html>
+<html>
+<body style="background:#000; color:#0f0; text-align:center; padding:50px">
+<h2>اختبار الزر</h2>
+<button id="start" type="button" style="padding:30px; font-size:24px; background:#0f0">اضغط هنا</button>
+<div id="log" style="margin-top:30px; font-size:20px; color:yellow">لسه ما ضغطت</div>
+
+<script>
+alert("الكود وصل هنا ✅ لو ما ظهر ليك التنبيه ده معناها الملف فيه مشكلة");
+
+document.getElementById('start').onclick = function() {
+  alert("الزر اشتغل 🔥");
+  document.getElementById('log').textContent = "الزر اشتغل! المشكلة ما في الزر";
+};
+</script>
+</body>
+</html>
