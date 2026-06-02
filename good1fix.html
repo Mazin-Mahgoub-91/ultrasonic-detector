@@ -1,0 +1,115 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLS Scope</title>
+<style>
+body{background:#000;color:#0f0;font-family:monospace;text-align:center;margin:0;padding:15px}
+h2{margin:10px 0;text-shadow:0 0 10px #0f0}
+canvas{width:100%;max-width:800px;height:280px;background:#000;border:3px solid #0f0;box-shadow:0 0 20px #0f0;margin:15px auto;display:block}
+button{padding:22px 50px;font-size:20px;font-weight:bold;background:#0f0;color:#000;border:none;border-radius:12px}
+#logBox{max-width:800px;margin:20px auto 0;background:#111;border:2px solid #0f0;border-radius:8px;padding:12px;text-align:right;font-size:13px;color:yellow;max-height:150px;overflow-y:auto}
+.step{margin:4px 0}.ok{color:#0f0}.err{color:#ff5555}
+</style>
+</head>
+<body>
+<h2>📡 محلل الموجات فوق الصوتية SLS</h2>
+<button id="start">اضغط لتشغيل المايك</button>
+<canvas id="scope" width="800" height="280"></canvas>
+<div id="logBox"><div class="step">1. الصفحة حملت - جاهز</div></div>
+
+<script>
+// نأجل كل شي لحد ما الصفحة تحمل كاملة
+window.onload = function() {
+  const logBox = document.getElementById('logBox');
+  const canvas = document.getElementById('scope');
+  const ctx = canvas.getContext('2d');
+  let audioCtx, analyser, raf;
+
+  function addLog(t, c='step'){
+    const d = document.createElement('div');
+    d.className = 'step ' + c;
+    d.textContent = t;
+    logBox.appendChild(d);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  // ارسم المستطيل الفاضي
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,800,280);
+  ctx.strokeStyle = '#0f0';
+  ctx.strokeRect(0,0,800,280);
+  ctx.fillStyle = '#0f0';
+  ctx.font = '18px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('اضغط الزر لتشغيل المايك', 400, 140);
+  addLog('2. المستطيل اترسم ✅', 'ok');
+
+  document.getElementById('start').onclick = async () => {
+    document.getElementById('start').disabled = true;
+    addLog('3. الزر اتضغط', 'ok');
+
+    try {
+      addLog('4. بعمل AudioContext...');
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      addLog('5. الحالة: ' + audioCtx.state, 'ok');
+
+      if(audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+        addLog('6. عملنا resume', 'ok');
+      }
+
+      addLog('7. بطلب المايك getUserMedia...');
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      addLog('8. المايك اشتغل 🔴', 'ok');
+
+      const mic = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      mic.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      document.getElementById('start').innerText = 'المايك شغال - جرب الريموت';
+      addLog('9. بدينا الرسم...', 'ok');
+
+      function draw() {
+        raf = requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArray);
+
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0,0,800,280);
+
+        // شبكة
+        ctx.strokeStyle = '#0a0';
+        for(let i=0; i<800; i+=50){
+          ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,280); ctx.stroke();
+        }
+
+        // خط 20kHz
+        const freq20k = Math.floor(20000 * analyser.fftSize / audioCtx.sampleRate);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(freq20k,0); ctx.lineTo(freq20k,280); ctx.stroke();
+
+        // الأعمدة
+        const barWidth = 800 / dataArray.length;
+        for(let i=0; i<dataArray.length; i++){
+          let h = dataArray[i] / 255 * 280;
+          ctx.fillStyle = 'lime';
+          ctx.fillRect(i*barWidth, 280-h, barWidth, h);
+        }
+      }
+      draw();
+
+    } catch(e) {
+      addLog('خطأ: ' + e.name, 'err');
+      addLog('التفاصيل: ' + e.message, 'err');
+      alert(e.name + '\n' + e.message);
+      document.getElementById('start').disabled = false;
+    }
+  };
+}
+</script>
+</body>
+</html>
