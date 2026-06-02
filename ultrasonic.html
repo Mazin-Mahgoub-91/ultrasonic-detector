@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ultrasonic Detector</title>
+<style>
+body { background:#000; color:#0f0; font-family:monospace; text-align:center; padding:20px; }
+canvas { width:100%; max-width:600px; height:200px; background:#111; border:2px solid #0f0; }
+button { padding:15px 30px; font-size:18px; background:#0f0; color:#000; border:none; margin:10px; }
+#log { color:yellow; margin-top:20px; font-size:14px; word-break:break-word; }
+</style>
+</head>
+<body>
+<h2>كاشف الترددات العالية</h2>
+<button id="start">شغل المايك</button>
+<canvas id="c"></canvas>
+<div id="log">الحالة: في انتظار التشغيل...</div>
+
+<script>
+let audioCtx, analyser, mic, dataArray;
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const log = document.getElementById('log');
+canvas.width = 600; canvas.height = 200;
+
+document.getElementById('start').onclick = async () => {
+  try {
+    log.textContent = "الحالة: بحاول أفتح المايك...";
+
+    // لازم https أو localhost
+    if(location.protocol!== 'https:' && location.hostname!== 'localhost') {
+      log.textContent = "خطأ: لازم تشغل الصفحة بـ https عشان المايك يشتغل. http ما بيشتغل";
+      return;
+    }
+
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({sampleRate: 48000});
+
+    // أندرويد مرات بيعلق AudioContext لحد ما المستخدم يضغط
+    if(audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation:false, noiseSuppression:false}});
+    log.textContent = "الحالة: المايك اشتغل ✅ حرك الريموت قدامو";
+
+    mic = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    mic.connect(analyser);
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    draw();
+
+  } catch(err) {
+    log.textContent = "خطأ: " + err.name + " - " + err.message;
+    alert("ما قدر يفتح المايك: " + err.message);
+  }
+};
+
+function draw() {
+  requestAnimationFrame(draw);
+  if(!analyser) return;
+  analyser.getByteFrequencyData(dataArray);
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const barWidth = canvas.width / dataArray.length;
+  for(let i = 0; i < dataArray.length; i++) {
+    const barHeight = dataArray[i] / 255 * canvas.height;
+    ctx.fillStyle = rgb(${dataArray[i]},255,0);
+    ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth, barHeight);
+  }
+}
+</script>
+</body>
+</html>
