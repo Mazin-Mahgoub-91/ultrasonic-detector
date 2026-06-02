@@ -1,0 +1,155 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Ultrasonic SLS Decoder</title>
+<style>
+body {
+  background:#000; color:#0f0; font-family:monospace;
+  text-align:center; margin:0; padding:15px;
+}
+h2 { margin:10px 0; color:#0f0; text-shadow:0 0 10px #0f0 }
+canvas {
+  width:100%; max-width:800px; height:280px;
+  background:#000; border:3px solid #0f0;
+  box-shadow:0 0 20px #0f0; display:block; margin:15px auto;
+}
+button {
+  padding:22px 50px; font-size:20px; font-weight:bold;
+  background:linear-gradient(#0f0, #0a0); color:#000;
+  border:none; border-radius:12px; cursor:pointer;
+  box-shadow:0 0 15px #0f0;
+}
+button:active { transform:scale(0.95) }
+#logBox {
+  max-width:800px; margin:20px auto 0;
+  background:#111; border:2px solid #0f0; border-radius:8px;
+  padding:12px; text-align:right; font-size:13px;
+  color:yellow; max-height:150px; overflow-y:auto;
+}
+.step { margin:4px 0 }
+.ok { color:#0f0 }
+.err { color:red }
+</style>
+</head>
+<body>
+<h2>📡 محلل الموجات فوق الصوتية SLS</h2>
+<button id="start" type="button">اضغط لتشغيل المايك</button>
+<canvas id="scope"></canvas>
+
+<div id="logBox">
+  <div class="step">1. جاهز للتشغيل...</div>
+</div>
+
+<script>
+const logBox = document.getElementById('logBox');
+const canvas = document.getElementById('scope');
+const ctx = canvas.getContext('2d');
+canvas.width = 800; canvas.height = 280;
+
+let audioCtx, analyser, dataArray, raf;
+
+// ارسم المستطيل فاضي أول ما الصفحة تفتح
+function drawEmpty() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = '#0f0';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#0f0';
+  ctx.font = '18px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('اضغط الزر لتشغيل المايك', canvas.width/2, canvas.height/2);
+}
+drawEmpty();
+
+function addLog(text, cls='step') {
+  const div = document.createElement('div');
+  div.className = 'step ' + cls;
+  div.textContent = text;
+  logBox.appendChild(div);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+document.getElementById('start').onclick = async () => {
+  document.getElementById('start').style.display = 'none';
+  addLog('2. الزر اتضغط ✅', 'ok');
+
+  try {
+    addLog('3. بعمل AudioContext...');
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
+    addLog('4. AudioContext اتعمل. الحالة: ' + audioCtx.state, 'ok');
+
+    if(audioCtx.state === 'suspended') {
+      addLog('5. المتصفح معلق الصوت... بعمل resume');
+      await audioCtx.resume();
+      addLog('6. الصوت صحي ✅', 'ok');
+    }
+
+    addLog('7. بطلب صلاحية المايك...');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {echoCancellation:false, noiseSuppression:false, autoGainControl:false}
+    });
+    addLog('8. المايك اشتغل 🔴 عدد القنوات: ' + stream.getAudioTracks().length, 'ok');
+
+    const mic = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.3;
+    mic.connect(analyser);
+
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    addLog('9. التحليل شغال... جرب الريموت هسي', 'ok');
+
+    // خط أحمر عند 20kHz
+    const freq20k = Math.floor(20000 * analyser.fftSize / audioCtx.sampleRate);
+
+    function draw() {
+      raf = requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(dataArray);
+
+      // خلفية + شبكة
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.strokeStyle = '#0a0';
+      ctx.lineWidth = 1;
+      for(let i=0; i<canvas.width; i+=50) {
+        ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke();
+      }
+      for(let i=0; i<canvas.height; i+=28) {
+        ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke();
+      }
+
+      // خط 20kHz أحمر
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(freq20k, 0);
+      ctx.lineTo(freq20k, canvas.height);
+      ctx.stroke();
+      ctx.fillStyle = 'red';
+      ctx.font = '12px monospace';
+      ctx.fillText('20kHz', freq20k+15, 15);
+
+      // الرسم
+      const barWidth = canvas.width / dataArray.length;
+      for(let i = 0; i < dataArray.length; i++) {
+        const h = dataArray[i] / 255 * canvas.height;
+        const hue = i / 4; // ألوان
+        ctx.fillStyle = hsl(${hue}, 100%, 50%);
+        ctx.fillRect(i * barWidth, canvas.height - h, barWidth, h);
+      }
+    }
+    draw();
+
+  } catch(err) {
+    addLog('خطأ: ' + err.name + ' - ' + err.message, 'err');
+    alert('فشل: ' + err.message);
+    document.getElementById('start').style.display = 'block';
+  }
+};
+</script>
+</body>
+</html>
