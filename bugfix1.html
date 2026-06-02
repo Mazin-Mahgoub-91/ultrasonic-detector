@@ -1,0 +1,90 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Ultrasonic Test</title>
+<style>
+body { background:#000; color:#0f0; font-family:monospace; text-align:center; padding:20px; }
+canvas { width:100%; max-width:600px; height:200px; background:#111; border:2px solid #0f0; margin-top:10px; }
+button { padding:20px 40px; font-size:20px; background:#0f0; color:#000; border:none; margin:10px; border-radius:10px; }
+#log { color:yellow; margin-top:20px; font-size:16px; min-height:50px; }
+</style>
+</head>
+<body>
+<h2>اختبار المايك</h2>
+<button id="start">1. اضغط هنا لتشغيل المايك</button>
+<canvas id="c"></canvas>
+<div id="log">الحالة: جاهز للتشغيل</div>
+
+<script>
+let audioCtx, analyser, mic, dataArray;
+const log = document.getElementById('log');
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+canvas.width = 600; canvas.height = 200;
+
+document.getElementById('start').onclick = async () => {
+  try {
+    log.innerHTML = "1. بحاول أعمل AudioContext...";
+
+    // 1. نعمل الـ context
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    log.innerHTML += "<br>2. AudioContext: " + audioCtx.state;
+
+    // 2. لو معلق لازم نعمل resume - دي أهم خطوة
+    if(audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+      log.innerHTML += "<br>3. عملنا Resume ✅";
+    }
+
+    // 3. نطلب المايك
+    log.innerHTML += "<br>4. بطلب صلاحية المايك...";
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }
+    });
+
+    log.innerHTML += "<br>5. المايك اشتغل! 🔥";
+    document.getElementById('start').style.display = 'none';
+
+    // 4. نوصل ونرسم
+    mic = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    mic.connect(analyser);
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    draw();
+
+  } catch(err) {
+    log.innerHTML += "<br><span style='color:red'>خطأ: " + err.name + "</span>";
+    log.innerHTML += "<br>الرسالة: " + err.message;
+
+    if(err.name === 'NotAllowedError') {
+      alert("إنت رفضت صلاحية المايك. امشي إعدادات المتصفح > صلاحيات الموقع > فعّل المايك");
+    }
+    if(err.name === 'NotFoundError') {
+      alert("الموبايل ما لاقي مايك أصلاً");
+    }
+  }
+};
+
+function draw() {
+  requestAnimationFrame(draw);
+  if(!analyser) return;
+  analyser.getByteFrequencyData(dataArray);
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const barWidth = canvas.width / dataArray.length;
+  for(let i = 0; i < dataArray.length; i++) {
+    const barHeight = dataArray[i] / 255 * canvas.height;
+    ctx.fillStyle = hsl(${i/3}, 100%, 50%);
+    ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth, barHeight);
+  }
+}
+</script>
+</body>
+</html>
