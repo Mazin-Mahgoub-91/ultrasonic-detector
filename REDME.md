@@ -1,1 +1,0 @@
-﻿An ultrasonic detector is a thing that transmits or receives high-frequency sound waves above the limit of human hearing (typically between 20 kHz and 100+ kHz). They operate via echolocation—similar to how bats navigate—by sending out a sound wave and timing how long the echo takes to bounce back
